@@ -1,0 +1,92 @@
+{
+    "$help": "https://aka.ms/terminal-documentation",
+    "$schema": "https://aka.ms/terminal-profiles-schema",
+    "actions": [
+        {
+            "command": {
+                "action": "sendInput",
+                "input": "\u001b[13;2u"
+            },
+            "id": "User.sendInput.ShiftEnter"
+        }
+    ],
+    "copyFormatting": "none",
+    "copyOnSelect": false,
+    "defaultProfile": "{700db04d-7871-476c-80de-54a8cb6e6e9f}",
+    "keybindings": [
+        {
+            "id": "Terminal.FindText",
+            "keys": "ctrl+shift+f"
+        },
+        {
+            "id": "Terminal.DuplicatePaneAuto",
+            "keys": "alt+shift+d"
+        },
+        {
+            "id": "User.sendInput.ShiftEnter",
+            "keys": "shift+enter"
+        }
+    ],
+    "newTabMenu": [
+        {
+            "type": "remainingProfiles"
+        }
+    ],
+    "profiles": {
+        "defaults": {},
+        "list": [
+            {
+                "adjustIndistinguishableColors": "never",
+                "antialiasingMode": "cleartype",
+                "closeOnExit": "never",
+                "colorScheme": "Campbell",
+                "commandline": "\"%LOCALAPPDATA%\\Microsoft\\WindowsApps\\pwsh.exe\"",
+                "compatibility.allowOSC52": true,
+                "cursorShape": "filledBox",
+                "font": {
+                    "face": "JetBrainsMono Nerd Font",
+                    "features": {
+                        "calt": 0,
+                        "cv16": 1,
+                        "zero": 1
+                    },
+                    "size": 11
+                },
+                "guid": "{700db04d-7871-476c-80de-54a8cb6e6e9f}",
+                "hidden": false,
+                "icon": "ms-appx:///ProfileIcons/pwsh.png",
+                "intenseTextStyle": "bold",
+                "name": "Terminal",
+                "rightClickContextMenu": true,
+                "showMarksOnScrollbar": false,
+                "startingDirectory": "%USERPROFILE%"
+            }
+        ]
+    },
+    "schemes": [
+        {
+            "name": "Campbell",
+            "background": "#0C0C0C",
+            "foreground": "#CCCCCC",
+            "cursorColor": "#FFFFFF",
+            "selectionBackground": "#FFFFFF",
+            "black": "#0C0C0C",
+            "red": "#C50F1F",
+            "green": "#13A10E",
+            "yellow": "#C19C00",
+            "blue": "#0037DA",
+            "purple": "#881798",
+            "cyan": "#3A96DD",
+            "white": "#CCCCCC",
+            "brightBlack": "#767676",
+            "brightRed": "#E74856",
+            "brightGreen": "#16C60C",
+            "brightYellow": "#F9F1A5",
+            "brightBlue": "#3B78FF",
+            "brightPurple": "#B4009E",
+            "brightCyan": "#61D6D6",
+            "brightWhite": "#F2F2F2"
+        }
+    ],
+    "themes": []
+}

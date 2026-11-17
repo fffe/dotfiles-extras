@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+if [ "$#" -ne 1 ] || [ -z "$1" ]; then
+    printf 'Usage: %s TARGET_DIRECTORY\n' "$0" >&2
+    exit 2
+fi
+
+repo=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)
+target=$1
+case $target in
+    /*) ;;
+    *) target=$PWD/$target ;;
+esac
+
+mkdir -p "$target"
+for source in "$repo"/terminfo/*.terminfo; do
+    tic -x -o "$target" "$source"
+done
