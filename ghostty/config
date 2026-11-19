@@ -1,0 +1,13 @@
+# Appearance. Use Ghostty's bundled default font and Nerd Font symbols.
+theme = Campbell
+
+# Selection and mouse actions (middle-click-action requires Ghostty 1.4+).
+copy-on-select = false
+middle-click-action = ignore
+right-click-action = context-menu
+
+# Distinguish Shift+Return even when the application has not enabled a keyboard
+# protocol (notably zsh 5.8.1/5.9). Works directly and through tmux 3.3a+.
+keybind = shift+enter=csi:13;2u
+
+config-file = ?local.conf

@@ -1,0 +1,177 @@
+#!/bin/sh
+set -eu
+
+release=v0.12.6-1-4ef4bed584a099d03ec7591306c33e1f81e68ae8
+linux_x86_64=4f62072d60fd94306a7b211514acef0ba7d73bd1bfbe8283897f82ca3600922f
+linux_arm64=064ba95b7b9c6ee397d1eef0889ebe331c38d7ef8d32e1e07997bf3ffd62a2ef
+macos_arm64=9a32c2f1b0b80d2964e68bc87e5c7af0d7bb906907c1a7b98bf5e9f8aa256beb
+repo=https://github.com/fffe/neovim
+
+fail() {
+    printf '%s\n' "$*" >&2
+    exit 1
+}
+
+fetch() {
+    curl -fsSL --proto '=https' --proto-redir '=https' \
+        --connect-timeout 20 --max-time 300 "$@"
+}
+
+hash() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        digest=$(sha256sum "$1")
+    elif command -v shasum >/dev/null 2>&1; then
+        digest=$(shasum -a 256 "$1")
+    elif command -v openssl >/dev/null 2>&1; then
+        digest=$(openssl dgst -sha256 < "$1")
+        digest=${digest##* }
+    else
+        fail 'SHA-256 requires sha256sum, shasum, or openssl'
+    fi
+
+    digest=${digest%% *}
+    if [ "${#digest}" -ne 64 ]; then
+        fail 'Invalid SHA-256 output'
+    fi
+    case $digest in
+        *[!0-9a-f]*) fail 'Invalid SHA-256 output' ;;
+    esac
+    printf '%s\n' "$digest"
+}
+
+action=install
+case ${1-} in
+    --update-pins|--uninstall) action=${1#--}; shift ;;
+    -h|--help)
+        printf 'Usage: %s [--uninstall] [PREFIX] | --update-pins (default: ~/.local)\n' "$0"
+        exit 0
+        ;;
+    -*) fail "Unknown option: $1" ;;
+esac
+if [ "$#" -gt 1 ]; then
+    fail 'Too many arguments'
+fi
+
+prefix=${1:-$HOME/.local}
+case $prefix in
+    /*) ;;
+    *) prefix=$PWD/$prefix ;;
+esac
+root=$prefix/share/neovim
+link=$prefix/bin/nvim
+marker=$root/.install-neovim
+
+if [ "$action" = update-pins ]; then
+    if [ "$#" -ne 0 ]; then
+        fail '--update-pins does not take a prefix'
+    fi
+
+    script=$0
+    while [ -L "$script" ]; do
+        resolved=$(readlink "$script")
+        case $resolved in
+            /*) script=$resolved ;;
+            *) script=$(dirname "$script")/$resolved ;;
+        esac
+    done
+
+    temporary=$(mktemp -d "$(dirname "$script")/.install-neovim.XXXXXX")
+else
+    if [ -L "$root" ]; then
+        fail "Refusing symlink: $root"
+    elif [ -e "$root" ]; then
+        if [ ! -f "$marker" ] || [ "$(cat "$marker")" != "$repo" ]; then
+            fail "Not installer-owned: $root"
+        fi
+    fi
+
+    if [ "$action" = uninstall ]; then
+        if [ -L "$link" ]; then
+            case $(readlink "$link") in
+                "$root/"*/bin/nvim) rm -- "$link" ;;
+            esac
+        fi
+        if [ -f "$marker" ]; then
+            rm -rf -- "$root"
+        fi
+        exit 0
+    fi
+
+    if [ -L "$link" ] && [ ! -d "$link" ]; then
+        case $(readlink "$link") in
+            "$root/"*/bin/nvim) ;;
+            *) fail "Unrelated symlink: $link" ;;
+        esac
+    elif [ -e "$link" ] || [ -L "$link" ]; then
+        fail "Already exists: $link"
+    fi
+
+    temporary=$(mktemp -d "${TMPDIR:-/tmp}/install-neovim.XXXXXX")
+fi
+
+staging=''
+trap '
+    rm -rf "$temporary"
+    if [ -n "$staging" ]; then
+        rm -rf "$staging"
+    fi
+' 0
+trap 'exit 1' HUP INT TERM
+
+if [ "$action" = update-pins ]; then
+    url=$(fetch -o /dev/null -w '%{url_effective}' "$repo/releases/latest")
+    case $url in
+        "$repo/releases/tag/"*) release=${url##*/} ;;
+        *) fail 'Cannot resolve Latest release' ;;
+    esac
+    case $release in
+        ''|*[!a-zA-Z0-9._+-]*) fail 'Unexpected release tag' ;;
+    esac
+
+    cp -p "$script" "$temporary/script"
+    sed "s/^release=.*/release=$release/" "$script" > "$temporary/script"
+
+    for target in linux-x86_64 linux-arm64 macos-arm64; do
+        fetch "$repo/releases/download/$release/nvim-$target.tar.gz" -o "$temporary/archive"
+        digest=$(hash "$temporary/archive")
+        key=$(printf '%s' "$target" | tr - _)
+        sed "s/^$key=.*/$key=$digest/" "$temporary/script" > "$temporary/updated"
+        cat "$temporary/updated" > "$temporary/script"
+    done
+
+    mv -f "$temporary/script" "$script"
+    printf 'Pinned %s; review the diff before committing.\n' "$release"
+else
+    case $(uname -s):$(uname -m) in
+        Linux:x86_64) target=linux-x86_64; expected=$linux_x86_64 ;;
+        Linux:aarch64|Linux:arm64) target=linux-arm64; expected=$linux_arm64 ;;
+        Darwin:arm64) target=macos-arm64; expected=$macos_arm64 ;;
+        *) fail 'Unsupported platform (Linux x86-64/ARM64 or macOS ARM64 required)' ;;
+    esac
+
+    build=$root/$release-$target
+    printf '%s\n' 'assert(vim.fn.resolve(vim.env.VIMRUNTIME) == vim.fn.resolve(arg[1]))' \
+        'assert(vim.fn.filereadable(vim.env.VIMRUNTIME .. "/doc/help.txt") == 1)' > "$temporary/check.lua"
+
+    if [ ! -d "$build" ]; then
+        fetch "$repo/releases/download/$release/nvim-$target.tar.gz" -o "$temporary/archive"
+        if [ "$(hash "$temporary/archive")" != "$expected" ]; then
+            fail 'SHA-256 mismatch; nothing unpacked'
+        fi
+
+        mkdir -p "$root"
+        printf '%s\n' "$repo" > "$marker"
+        staging=$(mktemp -d "$root/.install.XXXXXX")
+        tar -xzf "$temporary/archive" --strip-components=1 -C "$staging"
+        "$staging/bin/nvim" --clean --headless -i NONE -l "$temporary/check.lua" "$staging/share/nvim/runtime"
+        mv "$staging" "$build"
+        staging=''
+    fi
+
+    mkdir -p "$prefix/bin"
+    staging=$(mktemp -d "$prefix/bin/.nvim.XXXXXX")
+    ln -s "$build/bin/nvim" "$staging/nvim"
+    "$staging/nvim" --clean --headless -i NONE -l "$temporary/check.lua" "$build/share/nvim/runtime"
+    mv -f "$staging/nvim" "$link"
+    printf 'Installed %s: %s\n' "$release" "$link"
+fi
